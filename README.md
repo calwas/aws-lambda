@@ -132,8 +132,7 @@ Prerequisites:
 * Store the repository's `test.py` file in a ZIP file called `test.zip`.
 * Install Python 3.x.
 * Install the AWS Python library `boto3`. Instructions are at https://github.com/boto/boto3.
-* Open an AWS account. An AWS account is necessary to run the AWS CLI.
-* Install the AWS CLI. Windows installation instructions are at 
+* Install the AWS CLI (Command Line Interface). Windows installation instructions are at 
 https://docs.aws.amazon.com/cli/latest/userguide/awscli-install-windows.html. The CLI
 can be installed by using either a Windows MSI installer or the Python `pip` 
 command. The `pip` method is recommended to ease updating the CLI in the future.
