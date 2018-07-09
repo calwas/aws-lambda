@@ -1,0 +1,160 @@
+---
+Resources:
+  # CloudFormation creates a lambda function named <CloudFormationStackName-ResourceName-RandomChars>
+  # Example: CreateLambdaFunction-TestLambdaFunction-N7S3FMXJ8Z8R
+  TestLambdaFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Code:
+        S3Bucket: "generic-lambda-functions-01234"
+        S3Key: "test.zip"
+      Handler: test.lambda_handler
+      Role: !GetAtt LambdaExecutionRole.Arn
+      Runtime: python3.6
+      Tags:
+      -
+        Key: "Documentation"
+        Value: "Docbot"
+
+  # Creates an execution role called <CloudFormationStackName-ResourceName-RandomChars>
+  # Example: CreateLambdaFunction-LambdaExecutionRole-1TWFONVJX3VZQ
+  # The execution role is assigned to the lambda function
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+        - Effect: "Allow"
+          Principal:
+            Service:
+            - lambda.amazonaws.com
+          Action:
+          - "sts:AssumeRole"
+      Path: "/"
+      # Create a policy attached to the role
+      # Allow Cloudwatch logging
+      Policies:
+      - PolicyName: "AllowLogging"
+        PolicyDocument:
+          Version: "2012-10-17"
+          Statement:
+          - Effect: "Allow"
+            Action:
+            - logs:*
+            Resource: arn:aws:logs:*:*:*
+
+  # Permission for API Gateway endpoint to call TestLambdaFunction
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      FunctionName: !GetAtt
+        - TestLambdaFunction
+        - Arn
+      Principal: apigateway.amazonaws.com
+
+  # API Gateway REST API resource
+  # Creating an API Gateway resource to define an HTTPS endpoint for the lambda function
+  # is a complicated operation.
+  # The structure of this API Gateway resource was derived from the GitHub repository at:
+  # https://github.com/AWSinAction/apigateway
+  # The JSON in the repository file template_with_api.json was converted to YAML by the website:
+  # https://www.json2yaml.com
+  TestRestApi:
+    Type: AWS::ApiGateway::RestApi
+    Properties:
+      Name: Test API Gateway
+      Description: Skeleton API Gateway
+      
+  # Simple JSON model to pass data into and out of the lambda function
+  UserModel:
+    Type: AWS::ApiGateway::Model
+    Properties:
+      ContentType: application/json
+      Name: User
+      RestApiId:
+        Ref: TestRestApi
+      Schema:
+        "$schema": http://json-schema.org/draft-04/schema#
+        title: User
+        type: object
+        additionalProperties: false
+        properties:
+          uid:
+            type: string
+          email:
+            type: string
+          phone:
+            type: string
+        required:
+        - uid
+        - email
+        - phone
+
+  UsersResource:
+    Type: AWS::ApiGateway::Resource
+    Properties:
+      RestApiId:
+        Ref: TestRestApi
+      ParentId: !GetAtt
+        - TestRestApi
+        - RootResourceId
+      PathPart: user
+      
+  UsersGet:
+    Type: AWS::ApiGateway::Method
+    Properties:
+      RestApiId:
+        Ref: TestRestApi
+      ResourceId:
+        Ref: UsersResource
+      HttpMethod: GET
+      AuthorizationType: NONE
+      Integration:
+        Type: AWS
+        IntegrationHttpMethod: POST
+        Uri:
+          Fn::Join:
+          - ''
+          - - 'arn:aws:apigateway:'
+            - Ref: AWS::Region
+            - ":lambda:path/2015-03-31/functions/"
+            - Fn::GetAtt:
+              - TestLambdaFunction
+              - Arn
+            - "/invocations"
+        IntegrationResponses:
+        - ResponseTemplates:
+            application/json: "$input.body"
+            #application/json: "$input.json('$.body')"
+          ResponseParameters:
+            method.response.header.Link: integration.response.body.headers.next
+          StatusCode: 200
+        PassthroughBehavior: NEVER
+        RequestTemplates:
+          application/json: '{"fun": "userExample", "parameters": {"limit": "$input.params(''limit'')", "next": "$input.params(''next'')"}}'
+      RequestParameters:
+        method.request.querystring.limit: false
+        method.request.querystring.next: false
+      MethodResponses:
+      - ResponseModels:
+          application/json:
+            Ref: UserModel
+        ResponseParameters:
+          method.response.header.Link: true
+        StatusCode: 200
+          
+  TestRestApiDeployment:
+    Type: AWS::ApiGateway::Deployment
+    Properties:
+      RestApiId:
+        Ref: TestRestApi
+      StageName: v1
+    DependsOn:
+      - UsersGet
+      
+Outputs:
+  ApiId:
+    Value:
+      Ref: TestRestApi

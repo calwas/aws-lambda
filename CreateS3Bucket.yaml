@@ -1,0 +1,33 @@
+---
+Resources:
+  # Bucket to store Lambda function ZIP files
+  DocS3Bucket:
+    Type: "AWS::S3::Bucket"
+    # DeletionPolicy: Retain      # Retain the bucket even if the CF stack is deleted
+    Properties:
+      BucketName : generic-lambda-functions-01234
+      Tags :
+        - Key : "Documentation"
+          Value : "Documentation"
+    # AccessControl : PublicRead
+
+  # Allow CloudFormation templates to read from the bucket
+  DocBucketAccessPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket:
+        Ref: "DocS3Bucket"
+      PolicyDocument:
+        Statement:
+          - Action:
+            - "s3:GetObject"
+            Effect: "Allow"
+            Resource:
+              Fn::Join:
+              - ""
+              - - "arn:aws:s3:::"
+                - Ref: "DocS3Bucket"
+                - "/*"
+            Principal:
+              Service:
+              - cloudformation.amazonaws.com
